@@ -54,8 +54,11 @@ var infoCache = {
 	updateElevatorStatus: function(newElevatorStatus) {
 		this.elevatorStatus = newElevatorStatus;
 	}
-};
+};/* End infoCache object */
 
+/**
+*  Function to return the distance between 2 objects (i.e. user and station)
+**/
 function getDistance(latUser, lonUser, latStation, lonStation) {
 	var R = 6371;
 	var dLat = (latStation - latUser).toRad();
@@ -69,7 +72,15 @@ function getDistance(latUser, lonUser, latStation, lonStation) {
 	return d * 0.621371;
 };
 
+/**
+* Name: getStationName
+* Param: abbr - string abbreviation for a station
+* Return: String or undefined
+* Logic: Given a station abbreviation, loop through current station list.  Return first matching station,
+*   or undefined if no match is found
+**/
 function getStationName(abbr) {
+	//see bart api for structure.  In this case, ".station" is an array of station objects
 	var stations = infoCache.getStationList().station;
 	var n = 0;
 
@@ -82,6 +93,13 @@ function getStationName(abbr) {
 	return undefined;
 }
 
+/**
+* Name: buildHttpRequestOptions
+* Param: requestUrl - string abbreviation for the specific BART API command being requested
+* Return: Object that can be passed as first argument to a "request" call
+* Logic: Builds the basic URI string from default values plus the requestUrl param.
+*		The result is an object that the request package can use to access BART API
+**/
 function buildHttpRequestOptions(requestUrl) {
 	return {
 		uri: bartApiBaseUrl + '/' + requestUrl + '&key=' + bartApiKey,
@@ -91,6 +109,14 @@ function buildHttpRequestOptions(requestUrl) {
 		maxRedirects: 10
 	};
 };
+/**
+* Name: loadElevatorStatus
+* Param: none
+* Return: none
+* Logic: Builds a URI to get the status of BART station elevators.  API response is parsed
+* 	and stored in infoCache object
+* Notes: Not currently used by BartBot code
+**/
 function loadElevatorStatus() {
 	console.log('Refreshing Elevator status cache...');
 	httpRequest(
@@ -105,6 +131,14 @@ function loadElevatorStatus() {
 	);
 }
 
+/**
+* Name: loadStationList
+* Param: none
+* Return: none
+* Logic: Builds a URI to get the list of BART stations.  API response is parsed
+* 	and stored in infoCache object.  Immediately calls successor function getStationInfoAndAccess()
+*   to make individual API calls for each station
+**/
 function loadStationList() {
 	console.log('Refreshing Station List cache...');
 	httpRequest(
@@ -195,6 +229,13 @@ function getStationInfoAndAccess() {
 	);
 };
 
+/**
+* Name: getServiceAnnouncements
+* Param: cb: a callback function
+* Return: cb(): execute callback with the data returned from BART
+* Logic: Queries BART API for service announcements.  API response is parsed
+* 	and announcements are converted to an array if necessary.
+**/
 function getServiceAnnouncements( cb ){
   httpRequest(
     buildHttpRequestOptions('bsa.aspx?cmd=bsa&date=today'),
@@ -211,8 +252,7 @@ function getServiceAnnouncements( cb ){
           newArray.push(res.root.bsa);
           res.root.bsa = newArray;
         }
-
-        res.root.bsa = res.root.bsa.reverse();
+        //res.root.bsa = res.root.bsa.reverse();
 
         return cb(null, res.root)
       });
@@ -220,13 +260,24 @@ function getServiceAnnouncements( cb ){
   );
 }
 
+/**
+* Name: getStations
+* Param: cb: a callback function
+* Return: cb(): execute callback with the data returned from BART
+* Logic: Station list is pulled from the data cache...this data is refreshed at startup, and every 24hours
+**/
   function getStations( cb ){
-    console.log('gettingstations')
     let stations = infoCache.getStationList().station;
     cb(null, stations)
   }
 
-  function status(cb){
+/**
+* Name: status
+* Param: cb: a callback function
+* Return: cb(): execute callback with the data returned from BART
+* Logic: This function returns a count of trains active in the BART system.
+**/
+	  function status(cb){
   	httpRequest( buildHttpRequestOptions('bsa.aspx?cmd=count'), function(error, resp, body) {
   		if(error) return cb(error)
   		// TODO non-happy path
@@ -237,6 +288,15 @@ function getServiceAnnouncements( cb ){
   	});
   }
 
+/**
+* Name: stationByLocation
+* Param: lat - user latitude
+* Param: lng - user longitude
+* Param: cb - a callback function
+* Return: cb(): execute callback with the ID of the closest station
+* Logic: Get the station list from Info Cache.  Check the distance from user lat/long for each station.
+* 	Return the closest sttion. 
+**/
   function stationByLocation(lat, lng, cb){
     var stations = infoCache.getStationList().station;
     var closestStation = {};
@@ -302,22 +362,28 @@ function getServiceAnnouncements( cb ){
 
   // Prime the station list on startup and read periodically
   loadStationList();
-  every('24h').do(function() {
+  	every('24h').do(function() {
     loadStationList();
   });
 
   // Prime the elevator status on startup and read periodically
   loadElevatorStatus();
-  every('15m').do(function() {
+  	every('15m').do(function() {
     loadElevatorStatus();
   });
 
+	/**
+	* toRad polyfill
+	**/
   if (typeof(Number.prototype.toRad) === 'undefined') {
     Number.prototype.toRad = function() {
       return this * (Math.PI / 180);
     }
   }
 
+  /**
+	*  Public Interface to the BART Module
+	**/
   return {
   getServiceAnnouncements: getServiceAnnouncements,
   getStations: getStations,
