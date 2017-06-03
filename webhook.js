@@ -19,6 +19,7 @@
 require('dotenv').config()
 const express = require('express');
 const bodyParser = require('body-parser');
+var session = require('express-session')
 const app = express();
 const request = require('request');
 const apiai = require('apiai');
@@ -30,10 +31,17 @@ const cors = require('cors')
 const path = require('path')
 const BART = require('./BART/BART')
 
+/* Express Middleware */
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static('public'))
+app.use(session({
+  secret: "tuxedo_cat",
+  resave: false,
+  saveUninitialized: true,
+  cookie: {maxAge: 1000 * 60 * 60}   /* 1 hour */
+}))
 
 //	Landing page
 app.get('/', (req,res)=>{
@@ -53,14 +61,14 @@ app.post('/webhook', (req, res) => {
     if(req.body.object === 'page') {
         req.body.entry.forEach((entry) => {
             entry.messaging.forEach((event) => {
-				if(event.message.attachments){
-					event.message.attachments.forEach((attachment) => {
-						handleUserLocation(attachment.payload.coordinates, event.sender.id);
-					})
-				}
-                if (event.message && event.message.text) {
-                    sendToAI(event);
-                }
+      				if(event.message.attachments){
+      					event.message.attachments.forEach((attachment) => {
+      						handleUserLocation(attachment.payload.coordinates, event.sender.id);
+      					})
+				      }
+              if (event.message && event.message.text) {
+                  sendToAI(event);
+              }
             });
         });
         res.status(200).end();
@@ -82,6 +90,7 @@ function handleUserLocation(location, user) {
 		}
 	})
 }
+
 function preProcessAIResponses(req, res) {
 	switch (req.body.result.action) {
 		case 'weather':
@@ -118,7 +127,7 @@ function sendToMessenger(message, sender) {
 }
 function handleAISuccess(response, sender){
 	var aiText = response.result.fulfillment.speech;
-	let id = {id: sender};	
+	let id = {id: sender};
 	if(aiText === 'LOCATION') {
 		let button = {text: 'Please share your location', 'quick_replies': [{'content_type': 'location',}]}
 		return sendToMessenger(button, id);
